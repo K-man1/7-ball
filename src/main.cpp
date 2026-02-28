@@ -289,10 +289,8 @@ void autonomous() {
 
 
     //Back from loader into goal
-    chassis.moveToPoint(-22, 34.8, 2500, {.forwards = false, .maxSpeed = 90});
+    chassis.moveToPoint(-22, 34.8, 2200, {.forwards = false, .maxSpeed = 90});
     pros::delay(400);
-
-
     score();
 
 
@@ -312,7 +310,7 @@ void autonomous() {
 
 
     //turn to algin 2 second part of auto
-    chassis.turnToHeading(135, 750);
+    chassis.turnToHeading(135, 600);
 
 
     //go to align to 2nd part of auto
@@ -325,23 +323,25 @@ void autonomous() {
 
     //move back into goal and score
     chassis.moveToPoint(-23, -63, 1100, {.forwards = false});
-    chassis.waitUntilDone();
+    pros::delay(300);
+    intake.move(-127);
+    pros::delay(100);
     score();
     will.toggle();
-    pros::delay(700);
+    pros::delay(1000);
     chassis.setPose(-23, -63, chassis.getPose().theta);
 
     //go into loader
-    chassis.moveToPose(20, -63, 90, 1000, {.maxSpeed = 75});
+    chassis.moveToPose(20, -61, 90, 1000, {.maxSpeed = 75});
     load();
-    pros::delay(800);
+    pros::delay(1200);
 
     //back away
-    chassis.moveToPoint(0, -63, 5000, {.forwards = false});
+    chassis.moveToPoint(0, -61, 1000, {.forwards = false});
 
     //go to middle goal
-    chassis.moveToPose(-42, -21, 135, 5000, {.forwards = false});
-    chassis.waitUntilDone();
+    chassis.moveToPose(-45, -21, 135, 5000, {.forwards = false});
+    pros::delay(1500);
     intake.move(-127);
     pros::delay(100);
     middle();
