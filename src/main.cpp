@@ -250,9 +250,7 @@ void score() {
     up.set_value(true);
     down.set_value(true);
     intake.move(-127);
-    pros::delay(200);
-
-
+    pros::delay(250);
     // then score
     intake.move(127);
    
@@ -330,30 +328,30 @@ void autonomous() {
 
 
     //move back into goal and score
-    chassis.moveToPoint(-23, -64, 1100, {.forwards = false});
-    pros::delay(300);
-    intake.move(-127);
-    pros::delay(300);
+    chassis.moveToPoint(-23, -63, 1100, {.forwards = false});
+    pros::delay(500);
+
     score();
     will.toggle();
     pros::delay(1000);
-    chassis.setPose(-23, -64, chassis.getPose().theta);
+    chassis.setPose(-23, -63, chassis.getPose().theta);
 
     //go into loader
-    chassis.moveToPose(20, -64, 90, 1000, {.maxSpeed = 65});
+    chassis.moveToPose(21, -63, 90, 1000, {.maxSpeed = 65});
     load();
     chassis.turnToHeading(93, 100);
     chassis.turnToHeading(87, 100);
     chassis.turnToHeading(93, 100);
     chassis.turnToHeading(87, 100);
-    chassis.turnToHeading(90, 1200);
+    chassis.turnToHeading(93, 100);
+    chassis.turnToHeading(87, 100);
 
 
     //back away
-    chassis.moveToPoint(0, -64, 1000, {.forwards = false});
+    chassis.moveToPoint(0, -63, 1000, {.forwards = false});
 
     //go to middle goal
-    chassis.moveToPose(-43, -21, 135, 5000, {.forwards = false});
+    chassis.moveToPose(-45, -21, 135, 5000, {.forwards = false});
     pros::delay(1500);
     intake.move(-127);
     pros::delay(100);
