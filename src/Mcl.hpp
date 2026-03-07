@@ -334,13 +334,14 @@ struct SensorConfig {
     float heading_deg;    // direction sensor points, 0 = forward
 };
 
+template <size_t S>
 inline void mcl_update(
     lemlib::Chassis&                         chassis,
     MCL<MCL_PARTICLE_COUNT>&                 mcl,
     float                                    prev_x,
     float                                    prev_y,
-    std::array<pros::Distance*, 4>           dist_sensors,
-    std::array<SensorConfig, 4>              sensor_configs,
+    std::array<pros::Distance*, S>           dist_sensors,
+    std::array<SensorConfig, S>              sensor_configs,
     float                                    mcl_tolerance = MCL_TOLERANCE
 ) {
     lemlib::Pose pose = chassis.getPose();
@@ -355,7 +356,7 @@ inline void mcl_update(
     std::vector<MCLReading> readings;
     readings.reserve(4);
 
-    for (size_t s = 0; s < 4; s++) {
+    for (size_t s = 0; s < S; s++) {
         pros::Distance* sensor = dist_sensors[s];
         const SensorConfig& cfg = sensor_configs[s];
 
@@ -410,6 +411,30 @@ inline void mcl_update(
     if (!readings.empty()) {
         mcl.update(readings);
         MCLPoint est = mcl.estimate();
+
+        // ── SD card logging (for tuning only) ────────────────────────────────
+        // To enable: #define MCL_LOG_SD at the top of main.cpp before #include "mcl.hpp"
+        // To tune: pull /usd/mcl_log.csv off the SD card and run visualize_mcl.py
+        // IMPORTANT: delete mcl_log.csv from the SD card between runs
+        // IMPORTANT: comment out MCL_LOG_SD once tuning is done — file I/O is slow
+#ifdef MCL_LOG_SD
+        static uint32_t log_ticks = 0;
+        if (log_ticks < 300) { // only log first 3 seconds (300 ticks at 100Hz)
+            FILE* f = fopen("/usd/mcl_log.csv", "a");
+            if (f) {
+                for (size_t i = 0; i < MCL_PARTICLE_COUNT; i++) {
+                    fprintf(f, "P,%f,%f,%f\n",
+                        mcl.presample_x[i],
+                        mcl.presample_y[i],
+                        mcl.presample_weights[i]);
+                }
+                fprintf(f, "E,%f,%f\n", est.x, est.y);
+                fclose(f);
+            }
+            log_ticks++;
+        }
+#endif
+
         mcl.resample();
 
         // Write corrected x/y back into chassis pose, keeping LemLib's heading

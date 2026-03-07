@@ -1,5 +1,7 @@
-#include "lemlib/api.hpp" // IWYU pragma: keep
+#define MCL_LOG_SD
+
 #include "main.h"
+#include "lemlib/api.hpp" // IWYU pragma: keep
 #include "lemlib/chassis/trackingWheel.hpp"
 #include "pros/misc.h"
 #include "pros/motors.hpp"
@@ -47,8 +49,8 @@ pros::MotorGroup rightMotors({20, -19, -18},  pros::MotorGearset::blue);
 
 pros::Imu imu(10);
 
-pros::Rotation verticalEnc(16);
-lemlib::TrackingWheel vertical(&verticalEnc, lemlib::Omniwheel::NEW_2, 0.25);
+// pros::Rotation verticalEnc(16);
+// lemlib::TrackingWheel vertical(&verticalEnc, lemlib::Omniwheel::NEW_2, 0.25);
 
 lemlib::Drivetrain drivetrain(&leftMotors, &rightMotors,
                               12, lemlib::Omniwheel::NEW_325, 450, 8);
@@ -56,7 +58,7 @@ lemlib::Drivetrain drivetrain(&leftMotors, &rightMotors,
 lemlib::ControllerSettings lateral_controller(5.6, 0, 4.5, 0, 0, 0, 0, 0, 0);
 lemlib::ControllerSettings angular_controller(1.68, 0, 11.65, 1.1, 1, 300, 3, 500, 0);
 
-lemlib::OdomSensors sensors(&vertical, nullptr, nullptr, nullptr, &imu);
+lemlib::OdomSensors sensors(nullptr, nullptr, nullptr, nullptr, &imu);
 
 lemlib::ExpoDriveCurve throttleCurve(3, 10, 1.019);
 lemlib::ExpoDriveCurve steerCurve(3, 10, 1.019);
@@ -67,36 +69,32 @@ lemlib::Chassis chassis(drivetrain, lateral_controller, angular_controller,
 lemlib::Pose pose = chassis.getPose();
 
 // ─── Distance Sensors ─────────────────────────────────────────────────────────
-// TODO: Replace port numbers with your actual sensor ports.
 
-pros::Distance dist_front(3);
-pros::Distance dist_right(4);
-pros::Distance dist_back(5);
-pros::Distance dist_left(6);
+pros::Distance dist_right(8);
+pros::Distance dist_back(2);
+pros::Distance dist_left(3);
 
 // ─── MCL ─────────────────────────────────────────────────────────────────────
 
 MCL<MCL_PARTICLE_COUNT> mcl;
 
-// TODO: Measure your robot and fill in the actual offsets.
 // offset_x, offset_y = inches from center of rotation (+ = right/forward)
 // heading_deg = direction sensor faces (0=forward, 90=right, 180=back, 270=left)
-std::array<SensorConfig, 4> sensor_configs = {{
-    { 0.0f,  7.0f,   0.0f},  // front
-    { 7.0f,  0.0f,  90.0f},  // right
-    { 0.0f, -7.0f, 180.0f},  // back
-    {-7.0f,  0.0f, 270.0f},  // left
+std::array<SensorConfig, 3> sensor_configs = {{
+    { 5.5f,  4.0f,  90.0f},  // right — 5.5" right, 4" in front
+    {-4.0f, -3.75f, 180.0f}, // back  — 4" left of center, 3.75" behind
+    {-5.5f,  5.0f, 270.0f},  // left  — 5.5" left, 5" in front
 }};
 
-std::array<pros::Distance*, 4> dist_ptrs = {
-    &dist_front, &dist_right, &dist_back, &dist_left
+std::array<pros::Distance*, 3> dist_ptrs = {
+    &dist_right, &dist_back, &dist_left
 };
 
 float prev_x = 0.0f;
 float prev_y = 0.0f;
 
-// Sets chassis pose AND re-initializes MCL particles around that position.
-// Call this anywhere you currently call chassis.setPose().
+// ─── Position helpers ─────────────────────────────────────────────────────────
+
 void set_pose_and_init_mcl(float x, float y, float theta, float spread = 2.0f) {
     chassis.setPose(x, y, theta);
     mcl.init(x, y, spread);
@@ -104,42 +102,25 @@ void set_pose_and_init_mcl(float x, float y, float theta, float spread = 2.0f) {
     prev_y = y;
 }
 
-// ─── initialize ───────────────────────────────────────────────────────────────
+// Reset position from a single sensor against a known wall.
+// offset = perpendicular distance from sensor to robot's edge facing that wall.
+// Call once per wall you want to reset from — explicitly specify which wall.
+enum Wall { TOP, BOTTOM, LEFT_WALL, RIGHT_WALL };
 
-void initialize() {
-    pros::lcd::initialize();
-    blue_background();
-    // display_img_from_c_array();
+void reset_from_wall(pros::Distance& sensor, float offset, Wall wall) {
+    float dist = sensor.get() / 25.4f;
+    if (dist <= 0 || dist >= 48.0f) return;
 
-    pros::Task screenTask([&]() {
-        while (true) {
-            pros::lcd::print(0, "X: %f",     chassis.getPose().x);
-            pros::lcd::print(1, "Y: %f",     chassis.getPose().y);
-            pros::lcd::print(2, "Theta: %f", chassis.getPose().theta);
-            pros::delay(100);
-        }
-    });
+    lemlib::Pose p = chassis.getPose();
+    float total = dist + offset;
 
-    chassis.calibrate();
-
-    // MCL background task — corrects x/y from distance sensors at 100Hz
-    pros::Task mcl_task([&]() {
-        while (true) {
-            mcl_update(chassis, mcl, prev_x, prev_y, dist_ptrs, sensor_configs);
-
-            lemlib::Pose p = chassis.getPose();
-            prev_x = p.x;
-            prev_y = p.y;
-
-            pros::delay(10);
-        }
-    });
+    switch (wall) {
+        case BOTTOM:     set_pose_and_init_mcl(p.x,            FIELD_MIN + total, p.theta); break;
+        case TOP:        set_pose_and_init_mcl(p.x,            FIELD_MAX - total, p.theta); break;
+        case LEFT_WALL:  set_pose_and_init_mcl(FIELD_MIN + total, p.y,            p.theta); break;
+        case RIGHT_WALL: set_pose_and_init_mcl(FIELD_MAX - total, p.y,            p.theta); break;
+    }
 }
-
-// ─── disabled / competition_initialize ───────────────────────────────────────
-
-void disabled() {}
-void competition_initialize() {}
 
 // ─── Mechanism helpers ────────────────────────────────────────────────────────
 
@@ -167,13 +148,18 @@ void outtake() {
     intake.move(-100);
 }
 
-// ─── autonomous ───────────────────────────────────────────────────────────────
+// ─── Auton selector ──────────────────────────────────────────────────────────
 
-void autonomous() {
+int selected_auton = 0;
+const int NUM_AUTONS = 2;
+const char* auton_names[] = {"AWP", "Skills"};
+
+// ─── Auton routines ───────────────────────────────────────────────────────────
+
+void solo_awp() {
     set_pose_and_init_mcl(0, 0, 0);
 
     chassis.moveToPoint(0, 32.6, 3000);
-
     will.toggle();
     load();
     chassis.turnToHeading(90, 1000);
@@ -205,8 +191,9 @@ void autonomous() {
     score();
     pros::delay(2500);
 
-    // Re-init MCL at this known position to reset any particle drift
-    set_pose_and_init_mcl(-23, -63, chassis.getPose().theta);
+    // at this point: facing 90°, right sensor sees bottom wall, back sensor sees left wall
+    reset_from_wall(dist_right, 4.0f,  BOTTOM);
+    reset_from_wall(dist_back,  3.75f, LEFT_WALL);
 
     chassis.moveToPose(27, -63, 90, 2000, {.maxSpeed = 55});
     load();
@@ -229,9 +216,77 @@ void autonomous() {
     pros::delay(5000);
 }
 
-// ─── opcontrol ────────────────────────────────────────────────────────────────
+void auton_skills() {
+    set_pose_and_init_mcl(0, 0, 0);
+    wing.extend();
+    load();
+    chassis.moveToPoint(-5, 21, 5000);
+    chassis.turnToHeading(225, 2000);
+    chassis.moveToPoint(7, 36, 5000, {.forwards = false});
+    chassis.waitUntilDone();
+    middle();
+    pros::delay(2000);
+    chassis.moveToPoint(0, -29, 5000);
+
+
+    intake.move(0);
+    // at this point: facing 90°, right sensor sees bottom wall, back sensor sees left wal
+    // rest of skills auton goes here...
+}
+
+// ─── disabled / competition_initialize ───────────────────────────────────────
+
+void disabled() {}
+void competition_initialize() {}
+
+// ─── autonomous ───────────────────────────────────────────────────────────────
+
+void autonomous() {
+    solo_awp();
+}
+
+// ─── initialize ───────────────────────────────────────────────────────────────
 
 pros::Controller controller(pros::E_CONTROLLER_MASTER);
+
+void initialize() {
+    pros::lcd::initialize();
+    blue_background();
+
+    pros::Task screenTask([&]() {
+        while (true) {
+            pros::lcd::print(0, "X: %f",     chassis.getPose().x);
+            pros::lcd::print(1, "Y: %f",     chassis.getPose().y);
+            pros::lcd::print(2, "Theta: %f", chassis.getPose().theta);
+            pros::lcd::print(3, "px: %f py: %f", prev_x, prev_y);
+            pros::lcd::print(4, "Auton: %s (%d)", auton_names[selected_auton], selected_auton);
+            pros::delay(100);
+        }
+    });
+
+    pros::lcd::register_btn0_cb([]() {
+        selected_auton = (selected_auton - 1 + NUM_AUTONS) % NUM_AUTONS;
+    });
+    pros::lcd::register_btn2_cb([]() {
+        selected_auton = (selected_auton + 1) % NUM_AUTONS;
+    });
+
+    chassis.calibrate();
+
+    pros::Task mcl_task([&]() {
+        while (true) {
+            mcl_update(chassis, mcl, prev_x, prev_y, dist_ptrs, sensor_configs);
+
+            lemlib::Pose p = chassis.getPose();
+            prev_x = p.x;
+            prev_y = p.y;
+
+            pros::delay(10);
+        }
+    });
+}
+
+// ─── opcontrol ────────────────────────────────────────────────────────────────
 
 void opcontrol() {
     while (true) {
@@ -255,15 +310,12 @@ void opcontrol() {
             down.set_value(true);
         }
         else if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L1)) {
-            intake.move(-127);
-            up.set_value(false);
-            down.set_value(false);
-            pros::delay(300);
         }
         else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {
-            intake.move(127);
             up.set_value(false);
             down.set_value(false);
+            intake.move(75);
+            
         }
         else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_L2)) {
             intake.move(-100);
