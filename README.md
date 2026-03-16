@@ -32,3 +32,6 @@ Replace logo.c with your own logo. You can learn how to that [here](https://www.
 
 ## Robot Specs
 For this, you need a 6 motor drivetrain with motor encoders (already built built into the robot). That's it!
+
+## How to Upload
+To upload this project, plug your computer into the VEX V5 brain using a USB-A -> Micro-USB cable, and type `pros build` and then `pros upload` into the intergrated terminal.
