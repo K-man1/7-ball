@@ -4,19 +4,21 @@ There are a few steps to use this code.
 ## Dependencies
 First, you need to install PROS in VSC. Here's how to do that:
 
-1. Install PROS extension.
+**1. Install PROS extension**
+
 Navigate to the extensions tab on the sidebar in VSC (3 blocks with 4th block falling icon). Then, search PROS. Install it.
 
 [PROS Documentation](https://pros.cs.purdue.edu/)
 
 ![INSTALL PROS](install-pros.jpg)
 
-2. Install Toolchain
+**2. Install Toolchain**
+
 After installing PROS, a notification will appear to install the toolchain. Install it.
 
 ![INSTALL PROS TOOLCHAIN](download-pros-toolchain.jpg)
 
-3. Clangd
+**3. Clangd**
 Install the Clangd extension the same way you did PROS. Then, reload.
 
 ## Clone Repo
